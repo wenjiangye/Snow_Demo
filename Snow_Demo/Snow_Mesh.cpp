@@ -6,8 +6,8 @@
 Snow_Mesh::Snow_Mesh(LPDIRECT3DDEVICE9 pDev)
 {
 	this->pDev = pDev;
-	Head = GenerateSphereMesh(pDev, 20.0f, 100, 100);  //画出头部网格模型
-	Body = GenerateCylinderMesh(pDev, 30.0f, 30.0f, 80.0f, 100, 100);
+	Head = GenerateSphereMesh(pDev, 20.0f, 100, 100);               //画出头部网格模型
+	Body = GenerateCylinderMesh(pDev, 30.0f, 30.0f, 80.0f, 100, 100);//画出身体的网格模型
 	LLeg = GenerateBoxMesh(pDev, 15.0f, 100.0f, 15.0f);  //画出腿的网格模型
 	RLeg = GenerateBoxMesh(pDev, 15.0f, 100.0f, 15.0f);  //画出腿的网格模型
 }

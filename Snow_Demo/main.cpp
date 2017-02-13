@@ -1,10 +1,16 @@
-
 #define SCREEN_WIDTH	1440						//为窗口宽度定义的宏，以方便在此处修改窗口宽度
 #define SCREEN_HEIGHT	760							//为窗口高度定义的宏，以方便在此处修改窗口高度
-#define WINDOW_TITLE	_T("简易雪人场景实现") //为窗口标题定义的宏
+#define WINDOW_TITLE	_T("简易雪人场景实现")    //为窗口标题定义的宏
+#define SCREEN_X      200                         //为窗口初始位置X坐标定义的值
+#define SCREEN_Y      100                         //为窗口初始位置Y坐标定义的值
+#define FPS_MESS      200						 //窗口动态提示消息跨越的帧数
+#define FLOOR_LEN     5000.0f                      //方形地面的宽度
+#define FLOOR_TEXTURE  100.0f                    //地面纹理细腻度
+#define SKY_LEN			10000.0f					//天空盒的宽度
+#define ROT_COUNT       10000                    //立方体旋转速度
+
                                                                                       
 #include <d3d9.h>
-#include <iostream>
 #include <d3dx9.h>
 #include <tchar.h>
 #include <time.h> 
@@ -17,7 +23,7 @@
 
 #pragma comment(lib,"d3d9.lib")
 #pragma comment(lib,"d3dx9.lib")
-#pragma comment(lib, "dinput8.lib")     // 使用DirectInput必须包含的库文件，注意这里有8
+#pragma comment(lib, "dinput8.lib")   
 #pragma comment(lib,"dxguid.lib")
 #pragma comment(lib, "winmm.lib") 
 
@@ -31,23 +37,16 @@ struct CUSTOMVERTEX
 	CUSTOMVERTEX(FLOAT x, FLOAT y, FLOAT z, 
 		FLOAT nx, FLOAT ny, FLOAT nz, FLOAT u, FLOAT v)
 	{
-		_x  = x,  _y  = y,  _z  = z;
-		_nx = nx, _ny = ny, _nz = nz;
-		_u  = u,  _v  = v;
+		_x  = x,  _y  = y,  _z  = z;   //位置
+		_nx = nx, _ny = ny, _nz = nz;  //法向量
+		_u  = u,  _v  = v;         //纹理坐标
 	}
 };
 #define D3DFVF_CUSTOMVERTEX  (D3DFVF_XYZ | D3DFVF_NORMAL | D3DFVF_TEX1)
 
-
-//*****************************************************************************************
-// Desc: 全局变量声明部分  
-//*****************************************************************************************
+//全局变量声明部分  
 LPDIRECT3DDEVICE9					g_pd3dDevice = NULL; //Direct3D设备对象
-LPD3DXFONT								g_pTextFPS				=NULL;    //字体COM接口
 LPD3DXFONT								g_pTextHelper          = NULL;  // 帮助信息的2D文本
-LPD3DXFONT								g_pTextInfor           = NULL;  // 绘制信息的2D文本
-float								g_FPS		= 0.0f;       //一个浮点型的变量，代表帧速率
-wchar_t										g_strFPS[50]={0};    //包含帧速率的字符数组
 D3DXMATRIX							g_matWorld;   //世界矩阵
 DInputClass*								g_pDInput = NULL;         //一个DInputClass类的指针
 CameraClass*							g_pCamera  = NULL;
@@ -60,22 +59,24 @@ LPDIRECT3DTEXTURE9				g_pTexture             = NULL;  //绘制草地的纹理对象
 LPDIRECT3DTEXTURE9				g_pTexture_snow = NULL;  //绘制雪人的纹理对象
 D3DMATERIAL9					white;
 HWND hwnd = NULL;
-Snow_Mesh*  snow1 = NULL;
-Snow_Mesh*  snow2 = NULL;
+Snow_Mesh*  snow1 = NULL;          // 1号雪人指针
+Snow_Mesh*  snow2 = NULL;          // 2号雪人指针
 CSkyBox*      g_pSkyBox = NULL;    //天空盒类指针  
-MessNotice*   Mess_notice = NULL;
-D3DXVECTOR3 Box_pos;
-bool LoginFlag = false;
+MessNotice*   Mess_notice = NULL;  //用于显示提示消息的通知类
+D3DXVECTOR3 Box_pos;              //立方体位置坐标
+bool LoginFlag = false;          //登陆立方体标志位
+bool AltFlag = false;           //按下ALT标志
 
 
-LRESULT CALLBACK		WndProc( HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam );
-HRESULT						Direct3D_Init(HWND hwnd,HINSTANCE hInstance);
-HRESULT						Objects_Init();
+LRESULT CALLBACK					WndProc( HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam );
+HRESULT								Direct3D_Init(HWND hwnd,HINSTANCE hInstance);
+HRESULT								Objects_Init();
 void								Direct3D_Render( HWND hwnd);
 void								Direct3D_Update( HWND hwnd);
 void								Direct3D_CleanUp( );
 float								Get_FPS();
 void								HelpText_Render(HWND hwnd);
+bool								Login_judge();
 
 
 //  Windows应用程序入口函数
@@ -108,7 +109,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine,
 
 	
 
-	MoveWindow(hwnd,200,50,SCREEN_WIDTH,SCREEN_HEIGHT,true);   //调整窗口显示时的位置
+	MoveWindow(hwnd,SCREEN_X,SCREEN_Y,SCREEN_WIDTH,SCREEN_HEIGHT,true);   //调整窗口显示时的位置
 	ShowWindow( hwnd, nShowCmd );    //调用Win32函数ShowWindow来显示窗口
 	UpdateWindow(hwnd);  //对窗口进行更新
 
@@ -185,7 +186,6 @@ LRESULT CALLBACK WndProc( HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam 
 				Mess_notice->push_back(L"你离开了立方体！");
 			}		
 		}
-		
 		break;
 	case WM_DESTROY:				//窗口销毁消息
 		Direct3D_CleanUp();     //调用Direct3D_CleanUp函数，清理COM接口对象
@@ -240,9 +240,7 @@ HRESULT Direct3D_Init(HWND hwnd,HINSTANCE hInstance)
 
 	if(!(S_OK==Objects_Init())) return E_FAIL;
 
-//	g_pd3dDevice->SetRenderState(D3DRS_AMBIENT, 0xffffffff);
-
-	SAFE_RELEASE(pD3D) //LPDIRECT3D9接口对象的使命完成，我们将其释放掉
+	SAFE_RELEASE(pD3D);
 
 	return S_OK;
 }
@@ -252,16 +250,12 @@ HRESULT Direct3D_Init(HWND hwnd,HINSTANCE hInstance)
 HRESULT Objects_Init()
 {
 	//创建字体
-	D3DXCreateFont(g_pd3dDevice, 36, 0, 0, 1000, false, DEFAULT_CHARSET, 
-		OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, 0, _T("Calibri"), &g_pTextFPS);
 	D3DXCreateFont(g_pd3dDevice, 23, 0, 1000, 0, false, DEFAULT_CHARSET, 
 		OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, 0, L"微软雅黑", &g_pTextHelper); 
-	D3DXCreateFont(g_pd3dDevice, 26, 0, 1000, 0, false, DEFAULT_CHARSET, 
-		OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, 0, L"黑体", &g_pTextInfor); 
 
 	Box_pos = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
 	//
-	Mess_notice = new MessNotice(g_pd3dDevice, 200, hwnd);
+	Mess_notice = new MessNotice(g_pd3dDevice, FPS_MESS, hwnd);
 
 	// 创建一片草坪
 	g_pd3dDevice->CreateVertexBuffer(4 * sizeof(CUSTOMVERTEX), 0, 
@@ -269,10 +263,10 @@ HRESULT Objects_Init()
 
 	CUSTOMVERTEX *pVertices = NULL;
 	g_pVertexBuffer->Lock(0, 0, (void**)&pVertices, 0);
-	pVertices[0] = CUSTOMVERTEX(-5000.0f, 0.0f, -5000.0f, 0.0f, 1.0f, 0.0f, 0.0f, 100.0f);
-	pVertices[1] = CUSTOMVERTEX(-5000.0f, 0.0f,  5000.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f);
-	pVertices[2] = CUSTOMVERTEX( 5000.0f, 0.0f, -5000.0f, 0.0f, 1.0f, 0.0f, 100.0f, 100.0f);
-	pVertices[3] = CUSTOMVERTEX( 5000.0f, 0.0f,  5000.0f, 0.0f, 1.0f, 0.0f, 100.0f, 0.0f);
+	pVertices[0] = CUSTOMVERTEX(-FLOOR_LEN, 0.0f, -FLOOR_LEN, 0.0f, 1.0f, 0.0f, 0.0f, FLOOR_TEXTURE);
+	pVertices[1] = CUSTOMVERTEX(-FLOOR_LEN, 0.0f, FLOOR_LEN, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f);
+	pVertices[2] = CUSTOMVERTEX(FLOOR_LEN, 0.0f, -FLOOR_LEN, 0.0f, 1.0f, 0.0f, FLOOR_TEXTURE, FLOOR_TEXTURE);
+	pVertices[3] = CUSTOMVERTEX(FLOOR_LEN, 0.0f, FLOOR_LEN, 0.0f, 1.0f, 0.0f, FLOOR_TEXTURE, 0.0f);
 	g_pVertexBuffer->Unlock();
 
 	// 创建地板纹理
@@ -281,7 +275,7 @@ HRESULT Objects_Init()
 	D3DXCreateTextureFromFile(g_pd3dDevice, L"image/grass_2.jpg", &g_pTexture_snow);
 	//创建天空盒子
 	g_pSkyBox = new CSkyBox(g_pd3dDevice);
-	g_pSkyBox->InitSkyBox(10000.0f);
+	g_pSkyBox->InitSkyBox(SKY_LEN);
 	g_pSkyBox->InitSkyBoxTexture(L"image/front.jpg", L"image/back.jpg", L"image/left.jpg", 
 		L"image/right.jpg", L"image/top.jpg");
 
@@ -296,19 +290,6 @@ HRESULT Objects_Init()
 	//创建立方体
 	g_box = GenerateBoxMesh(g_pd3dDevice, 60.0f, 60.0f, 60.0f);
 
-	// 设置方向光照  
-	//D3DLIGHT9 light;  
-	//::ZeroMemory(&light, sizeof(light));  
-	//light.Type          = D3DLIGHT_DIRECTIONAL;  
-	//light.Ambient       = D3DXCOLOR(0.7f, 0.7f, 0.7f, 1.0f);  
-	//light.Diffuse       = D3DXCOLOR(1.0f, 1.0f, 1.0f, 1.0f);  
-	//light.Specular      = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);  
-	//light.Direction     = D3DXVECTOR3(1.0f, 0.0f, 0.0f);  
-	//g_pd3dDevice->SetLight(0, &light);  
-	//g_pd3dDevice->LightEnable(0, true);  
-	//g_pd3dDevice->SetRenderState(D3DRS_NORMALIZENORMALS, true);  
-	//g_pd3dDevice->SetRenderState(D3DRS_SPECULARENABLE, true);
-
 	////创建材质
 	::ZeroMemory(&white, sizeof(white));
 	white.Diffuse = D3DXCOLOR(1.0f, 1.0f, 1.0f, 1.0f); // 
@@ -317,14 +298,13 @@ HRESULT Objects_Init()
 	white.Emissive = D3DXCOLOR(0.0f, 0.0f, 0.0f, 1.0f); // no emission
 	white.Power = 5.0f;
 
-	//设置一个光源
+	//初始化并设置一个光源
 	D3DLIGHT9 light_point;
 	::ZeroMemory(&light_point, sizeof(light_point));
 	light_point.Type = D3DLIGHT_DIRECTIONAL;
 	light_point.Ambient = D3DXCOLOR(0.9f, 0.9f, 0.9f, 0.0f);
 	light_point.Diffuse = D3DXCOLOR(1.0f, 1.0f, 1.0f, 0.0f);
 	light_point.Specular = D3DXCOLOR(0.3f, 0.3f, 0.3f, 0.0f);
-//	light_point.Position = D3DXVECTOR3(-1000.0f, 1000.0f, 2000.0f);
 	light_point.Direction = D3DXVECTOR3(1.0f, 0.0f, 0.0f);
 	g_pd3dDevice->SetLight(0, &light_point);
 	g_pd3dDevice->LightEnable(0, true);
@@ -364,25 +344,23 @@ void Direct3D_Update( HWND hwnd)
 	if (g_pDInput->IsKeyDown(DIK_K))  g_pCamera->MoveAlongUpVec(-0.3f);
 
 	//沿摄像机各分量旋转视角
-	if (g_pDInput->IsKeyDown(DIK_LEFT))  g_pCamera->RotationUpVec(-0.003f);
-	if (g_pDInput->IsKeyDown(DIK_RIGHT))  g_pCamera->RotationUpVec( 0.003f);
-	if (g_pDInput->IsKeyDown(DIK_UP))  g_pCamera->RotationRightVec(-0.003f);
-	if (g_pDInput->IsKeyDown(DIK_DOWN))  g_pCamera->RotationRightVec( 0.003f);
 	if (g_pDInput->IsKeyDown(DIK_J)) g_pCamera->RotationLookVec(0.001f);
 	if (g_pDInput->IsKeyDown(DIK_L)) g_pCamera->RotationLookVec( -0.001f);
 
-	//鼠标控制右向量和上向量的旋转
 
 	//计算并设置取景变换矩阵
 	if (LoginFlag == true)
 	{
-		g_pCamera->RotationVec(Box_pos, D3DXVECTOR3(0.0f, 1.0f, 0.0f), -D3DX_PI * 0.0002f);
+		g_pCamera->RotationVec(Box_pos, D3DXVECTOR3(0.0f, 1.0f, 0.0f), -D3DX_PI * (1.0f / ROT_COUNT));
 	}
-		D3DXMATRIX matView;
+	D3DXMATRIX matView;
+	if(!g_pDInput->IsKeyDown(DIK_TAB))
+	{
 		g_pCamera->RotationUpVec(g_pDInput->MouseDX()* 0.001f);
 		g_pCamera->RotationRightVec(g_pDInput->MouseDY() * 0.001f);
-		g_pCamera->CalculateViewMatrix(&matView);
-		g_pd3dDevice->SetTransform(D3DTS_VIEW, &matView);
+	}
+	g_pCamera->CalculateViewMatrix(&matView);
+	g_pd3dDevice->SetTransform(D3DTS_VIEW, &matView);
 
 }
 void Direct3D_Render(HWND hwnd)
@@ -393,10 +371,8 @@ void Direct3D_Render(HWND hwnd)
 	g_pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER|D3DCLEAR_STENCIL, D3DCOLOR_XRGB(50, 100, 250), 1.0f, 0);
 
 	g_pd3dDevice->BeginScene();                     // 开始绘制
-	//绘制灯光
-//	InitMaterialAndLight();
 
-	g_pd3dDevice->SetMaterial(&white);
+	g_pd3dDevice->SetMaterial(&white);				//设置材质
 
 
 
@@ -425,7 +401,7 @@ void Direct3D_Render(HWND hwnd)
 	//绘制立方体
 
 	D3DXMatrixTranslation(&matWorld, -1000.0f, -500.0f, -300.0f);
-	D3DXMatrixRotationY(&RotMatrix, -D3DX_PI * 0.0002f* allcount);
+	D3DXMatrixRotationY(&RotMatrix, -D3DX_PI * (1.0f / ROT_COUNT) * allcount);
 	g_matWorld = matWorld * RotMatrix;
 	Box_pos = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
 	D3DXVec3TransformCoord(&Box_pos, &Box_pos, &g_matWorld);
@@ -441,13 +417,13 @@ void Direct3D_Render(HWND hwnd)
 
 	//绘制雪人2
 	D3DXMatrixTranslation(&matWorld, -1000.0f, -300.0f, -300.0f);
-	D3DXMatrixRotationY(&RotMatrix, -D3DX_PI * 0.0002f* allcount);
+	D3DXMatrixRotationY(&RotMatrix, -D3DX_PI * (1.0f/ROT_COUNT) * allcount);
 	matWorld = matWorld * RotMatrix;
 	g_pd3dDevice->SetTransform(D3DTS_WORLD, &matWorld);
 	g_pd3dDevice->SetTexture(0, g_pTexture_snow);
 	snow1->Draw_Snow_body();
 	   
-	allcount = (allcount + 1) > 10000 ? 0 : (allcount + 1);
+	allcount = (allcount + 1) > ROT_COUNT ? 0 : (allcount + 1);
 	HelpText_Render(hwnd);
 
 	g_pd3dDevice->EndScene();                       // 结束绘制
@@ -465,9 +441,9 @@ void HelpText_Render(HWND hwnd)
 
 	// 输出帮助信息
 	formatRect.left = 0,formatRect.top = 500;
-	g_pTextInfor->DrawText(NULL, L"漫游控制说明:", -1, &formatRect, 
+	g_pTextHelper->DrawText(NULL, L" 漫游说明:", -1, &formatRect, 
 		DT_SINGLELINE | DT_NOCLIP | DT_LEFT, D3DCOLOR_RGBA(235,123,230,255));
-	formatRect.top += 35;
+	formatRect.top += 25;
 	g_pTextHelper->DrawText(NULL, L"    W：向前     S：向后 ", -1, &formatRect, 
 		DT_SINGLELINE | DT_NOCLIP | DT_LEFT, D3DCOLOR_RGBA(255,200,0,255));
 	formatRect.top += 25;
@@ -480,13 +456,16 @@ void HelpText_Render(HWND hwnd)
 	g_pTextHelper->DrawText(NULL, L"    J：向左倾斜       L：向右倾斜", -1, &formatRect, 
 		DT_SINGLELINE | DT_NOCLIP | DT_LEFT, D3DCOLOR_RGBA(255,200,0,255));
 	formatRect.top += 25;
-	g_pTextHelper->DrawText(NULL, L"    上、下、左、右方向键、鼠标移动：视角变化 ", -1, &formatRect, 
+	g_pTextHelper->DrawText(NULL, L"    鼠标移动：视角变化 ", -1, &formatRect, 
 		DT_SINGLELINE | DT_NOCLIP | DT_LEFT, D3DCOLOR_RGBA(255,200,0,255));
 	formatRect.top += 25;
 	g_pTextHelper->DrawText(NULL, L"    ESC键 : 退出程序", -1, &formatRect, 
 		DT_SINGLELINE | DT_NOCLIP | DT_LEFT, D3DCOLOR_RGBA(255,200,0,255));
 	formatRect.top += 25;
 	g_pTextHelper->DrawText(NULL, L"    Space键 : 登陆或离开立方体", -1, &formatRect,
+		DT_SINGLELINE | DT_NOCLIP | DT_LEFT, D3DCOLOR_RGBA(255, 200, 0, 255));
+	formatRect.top += 25;
+	g_pTextHelper->DrawText(NULL, L"    按住TAB键可以只拖动指针，不旋转视角", -1, &formatRect,
 		DT_SINGLELINE | DT_NOCLIP | DT_LEFT, D3DCOLOR_RGBA(255, 200, 0, 255));
 }
 
@@ -497,12 +476,10 @@ void Direct3D_CleanUp()
 	//释放COM接口对象
 	SAFE_DELETE(g_pDInput);
 	SAFE_RELEASE(g_pd3dDevice);
-		SAFE_RELEASE(g_pTextHelper)
-		SAFE_RELEASE(g_pTextInfor)
-		SAFE_RELEASE(g_pTextFPS)
-		SAFE_RELEASE(g_pd3dDevice)
-	if (snow1)
-	  delete snow1;
-	if (snow2)
-		delete snow2;
+	SAFE_RELEASE(g_pTextHelper)
+	SAFE_RELEASE(g_pd3dDevice)
+	SAFE_DELETE(snow1);
+	SAFE_DELETE(snow2);
+	SAFE_DELETE(g_pSkyBox);    //天空盒类指针  
+	SAFE_DELETE(Mess_notice);  //用于实时显示提示消息指针
 }
