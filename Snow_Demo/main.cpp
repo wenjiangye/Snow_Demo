@@ -74,7 +74,6 @@ HRESULT								Objects_Init();
 void								Direct3D_Render( HWND hwnd);
 void								Direct3D_Update( HWND hwnd);
 void								Direct3D_CleanUp( );
-float								Get_FPS();
 void								HelpText_Render(HWND hwnd);
 bool								Login_judge();
 
@@ -108,7 +107,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,LPSTR lpCmdLine,
 	}
 
 	
-
 	MoveWindow(hwnd,SCREEN_X,SCREEN_Y,SCREEN_WIDTH,SCREEN_HEIGHT,true);   //调整窗口显示时的位置
 	ShowWindow( hwnd, nShowCmd );    //调用Win32函数ShowWindow来显示窗口
 	UpdateWindow(hwnd);  //对窗口进行更新
@@ -349,15 +347,16 @@ void Direct3D_Update( HWND hwnd)
 
 
 	//计算并设置取景变换矩阵
-	if (LoginFlag == true)
-	{
-		g_pCamera->RotationVec(Box_pos, D3DXVECTOR3(0.0f, 1.0f, 0.0f), -D3DX_PI * (1.0f / ROT_COUNT));
-	}
+
 	D3DXMATRIX matView;
 	if(!g_pDInput->IsKeyDown(DIK_TAB))
 	{
 		g_pCamera->RotationUpVec(g_pDInput->MouseDX()* 0.001f);
 		g_pCamera->RotationRightVec(g_pDInput->MouseDY() * 0.001f);
+	}
+	if (LoginFlag == true)
+	{
+		g_pCamera->RotationVec(Box_pos, D3DXVECTOR3(0.0f, 1.0f, 0.0f), -D3DX_PI * (1.0f / ROT_COUNT));
 	}
 	g_pCamera->CalculateViewMatrix(&matView);
 	g_pd3dDevice->SetTransform(D3DTS_VIEW, &matView);
@@ -401,7 +400,7 @@ void Direct3D_Render(HWND hwnd)
 	//绘制立方体
 
 	D3DXMatrixTranslation(&matWorld, -1000.0f, -500.0f, -300.0f);
-	D3DXMatrixRotationY(&RotMatrix, -D3DX_PI * (1.0f / ROT_COUNT) * allcount);
+	D3DXMatrixRotationY(&RotMatrix, -D3DX_PI * (1.0f / ROT_COUNT) * allcount);	
 	g_matWorld = matWorld * RotMatrix;
 	Box_pos = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
 	D3DXVec3TransformCoord(&Box_pos, &Box_pos, &g_matWorld);
@@ -423,7 +422,7 @@ void Direct3D_Render(HWND hwnd)
 	g_pd3dDevice->SetTexture(0, g_pTexture_snow);
 	snow1->Draw_Snow_body();
 	   
-	allcount = (allcount + 1) > ROT_COUNT ? 0 : (allcount + 1);
+	allcount = (allcount + 1) > 2 * ROT_COUNT ? 0 : (allcount + 1);
 	HelpText_Render(hwnd);
 
 	g_pd3dDevice->EndScene();                       // 结束绘制

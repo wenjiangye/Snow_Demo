@@ -165,6 +165,7 @@ VOID CameraClass::RotationVec(D3DXVECTOR3 pos, D3DXVECTOR3 Vec, FLOAT fAngle)
 	D3DXVec3TransformCoord(&m_vRightVector, &m_vRightVector, &R);
 	D3DXVec3TransformCoord(&m_vUpVector, &m_vUpVector, &R);
 	D3DXVec3TransformCoord(&m_vLookVector, &m_vLookVector, &R);
+	//D3DXVec3TransformCoord(&m_vCameraPosition, &m_vCameraPosition, &R);
 	m_vCameraPosition = pos + D3DXVECTOR3(0.0f, 200.0f, 0.0f);
 }
 VOID CameraClass::CalcutePostion(D3DXMATRIX pMatrix)
